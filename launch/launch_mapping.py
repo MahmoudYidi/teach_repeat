@@ -12,7 +12,7 @@ def generate_launch_description():
         DeclareLaunchArgument('lidar_topic', default_value='/front_lidar_scan', description='Lidar topic name'),
         DeclareLaunchArgument('cmd_vel_topic', default_value='/diff_drive_controller/cmd_vel_unstamped', description='Cmd_vel topic name'),
         DeclareLaunchArgument('odom_topic', default_value='/diff_drive_controller/odom', description='Odometry topic name'),
-        #####################################################################################################################################
+        ######################################################################################################################################
 
 
         Node(
