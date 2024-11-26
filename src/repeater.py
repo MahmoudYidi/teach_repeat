@@ -15,7 +15,7 @@ class LaserScanDeviationCalculator(Node):
 
         # Declare parameters
         self.declare_parameter('scan_folder', 'rosbag_data')  # Folder where saved scans are stored
-        self.declare_parameter('scan_interval', 3.0)  # Time interval in seconds
+        self.declare_parameter('scan_interval', 4.0)  # Time interval in seconds
 
         # Retrieve parameters
         self.scan_folder = self.get_parameter('scan_folder').value

@@ -9,24 +9,8 @@ from rclpy.serialization import deserialize_message
 from rclpy.time import Time
 
 class DeviationProcessor:
-    def __init__(self, fx=185.90483944879418, fy=185.90483944879418, cx=320.5, cy=240.5, camera_distance=1.0):
-        """
-        Initialize the processor using full camera parameters.
-        :param fx: Focal length in the x-direction (in pixels).
-        :param fy: Focal length in the y-direction (in pixels).
-        :param cx: Principal point in the x-direction (in pixels).
-        :param cy: Principal point in the y-direction (in pixels).
-        :param camera_distance: Distance from the camera to the observed plane in meters (Z).
-        """
-        self.fx = fx
-        self.fy = fy
-        self.cx = cx
-        self.cy = cy
-        self.camera_distance = camera_distance
-        
-        # Calculate the pixel-to-meter ratio based on the focal length and distance (Z)
-        #self.image_to_meter_ratio = self.camera_distance / self.fx  # Use fx for horizontal scaling
-
+    def __init__(self):
+       pass
     #def normalize_deviations(self, laser_deviation, image_deviation):
    
         # Convert image deviation from pixels to meters using the calculated ratio
@@ -36,15 +20,15 @@ class DeviationProcessor:
     def combine_deviations_rmse(self, laser_deviation, image_deviation):
         print('laser', laser_deviation)
         print('image', image_deviation)
-        combined_sign = np.sign(laser_deviation + image_deviation)
-        rmse = math.sqrt((laser_deviation**2 + image_deviation**2) / 2)
-        combined_deviation = combined_sign * rmse
+        #combined_sign = np.sign(laser_deviation + image_deviation)
+        combined_deviation = ((0.5 * laser_deviation) + (0.5 * image_deviation)) / 1
+        #combined_deviation = combined_sign * weighted_average
         print('combined',combined_deviation)
         return combined_deviation
         
 
-    def compute_velocity_correction(self, combined_deviation, kp=0.001):
-        gained = -kp * combined_deviation
+    def compute_velocity_correction(self, combined_deviation, kp=0.0):
+        gained = kp * combined_deviation
         print('gained',gained)
  
         return gained

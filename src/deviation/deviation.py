@@ -5,7 +5,7 @@ import json
 from sklearn.neighbors import NearestNeighbors
 
 
-def calculate_laser_deviation(saved_scan, current_scan, robot_orientation, max_deviation=1.0):
+def calculate_laser_deviation(saved_scan, current_scan, robot_orientation, max_deviation=0.8):
    
     if saved_scan.size == 0 or current_scan.size == 0:
         return 0.0
@@ -29,14 +29,11 @@ def calculate_laser_deviation(saved_scan, current_scan, robot_orientation, max_d
 
     # Calculate the average deviation in the y-axis (robot's local frame)
     deviation = np.mean(distances)
-    if abs(deviation) > max_deviation:
+    if abs(deviation) < max_deviation:
        # Skip deviations that are too large
-        if robot_orientation > 0:
             # Robot is facing right (clockwise), positive deviation means to the right
-            return deviation
-        else:
-            # Robot is facing left (counter-clockwise), positive deviation means to the left
-            return -deviation
+            return deviation    
+            
     else:
         print('discarded')
         return 0.0
@@ -72,20 +69,41 @@ def transform_to_robot_frame(points, robot_orientation):
     return transformed_points
 
 
-def calculate_image_deviation(image1, image2, depth_image, robot_orientation, fx=185.90483944879418, max_match_distance=50.0, max_deviation=1.0):
-    """Calculate the deviation distance between two images using ORB and a single depth image."""
-    orb = cv2.ORB_create()
+def calculate_image_deviation(image1, image2, depth_image, robot_orientation, fx=185.90483944879418, 
+                              max_match_distance=200.0, max_deviation=0.8, use_sift=False):
+    """
+    Calculate the deviation distance between two images using ORB or SIFT and a single depth image.
+
+    Parameters:
+    - image1, image2: Input RGB images to compare.
+    - depth_image: Depth image corresponding to `image1`.
+    - robot_orientation: Robot's orientation for deviation adjustment.
+    - fx: Camera's focal length in pixels.
+    - max_match_distance: Maximum distance for valid feature matches.
+    - max_deviation: Maximum allowed real-world deviation.
+    - use_sift: Use SIFT if True; otherwise, use ORB.
+
+    Returns:
+    - angular_deviation: Calculated angular deviation.
+    """
+    # Choose the feature detector
+    if use_sift:
+        feature_detector = cv2.SIFT_create()
+        norm_type = cv2.NORM_L2
+    else:
+        feature_detector = cv2.ORB_create()
+        norm_type = cv2.NORM_HAMMING
 
     # Convert images to grayscale
     image1_gray = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
     image2_gray = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
 
     # Detect keypoints and compute descriptors for both images
-    kp1, des1 = orb.detectAndCompute(image1_gray, None)
-    kp2, des2 = orb.detectAndCompute(image2_gray, None)
+    kp1, des1 = feature_detector.detectAndCompute(image1_gray, None)
+    kp2, des2 = feature_detector.detectAndCompute(image2_gray, None)
 
     # Match descriptors using the BFMatcher
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    bf = cv2.BFMatcher(norm_type, crossCheck=True)
     matches = bf.match(des1, des2)
     
     # Sort matches by their distance
@@ -112,25 +130,17 @@ def calculate_image_deviation(image1, image2, depth_image, robot_orientation, fx
 
             # If the depth value is valid, calculate the real-world horizontal distance
             real_distance_deviation = (horizontal_offset * depth1) / fx
-            if real_distance_deviation > max_deviation:
-                print('discarded')
+            if abs(real_distance_deviation) > max_deviation:
                 continue  # Skip deviations that are too large
 
             real_distance_deviations.append(real_distance_deviation)
 
         # Compute the average real-world distance deviation
         if len(real_distance_deviations) > 0:
-            angular_deviation = np.mean(real_distance_deviations)
+           return np.mean(real_distance_deviations)
         else:
-            angular_deviation = 0.0  # No valid matches found, no deviation
+           return  0.0  # No valid matches found, no deviation
 
     else:
-        angular_deviation = 0.0  # No matches found, no deviation
+        return  0.0  # No matches found, no deviation
 
-    # Adjust deviation sign based on the robot's orientation
-    if robot_orientation > 0:
-        # Robot is facing right (clockwise), positive deviation means right
-        return angular_deviation
-    else:
-        # Robot is facing left (counter-clockwise), positive deviation means left
-        return -angular_deviation
