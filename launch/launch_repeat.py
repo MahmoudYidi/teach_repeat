@@ -17,7 +17,7 @@ def generate_launch_description():
         ###################################################################################################################################################
 
         Node(
-            package='teach_repeat', 
+            package='teachrepeat', 
             executable='deviation_ros.py',
             name='deviation_node',
             output='screen',
@@ -38,7 +38,7 @@ def generate_launch_description():
         ),
 
         Node(
-            package='teach_repeat', 
+            package='teachrepeat', 
             executable='process_ros.py',
             name='processor_node',
             output='screen',

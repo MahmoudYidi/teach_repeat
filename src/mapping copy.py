@@ -2,7 +2,6 @@
 
 import rclpy
 from rclpy.node import Node
-from rclpy.action import ActionServer
 from rosbag2_py import SequentialWriter, StorageOptions, ConverterOptions, TopicMetadata
 from sensor_msgs.msg import Image, LaserScan
 from nav_msgs.msg import Odometry
@@ -13,127 +12,71 @@ import json
 import os
 import csv
 import cv2
-from teachrepeat.action import MapRecord  # Replace 'my_package' with your actual package name
 
 
 class MapRecorder(Node):
     def __init__(self):
         super().__init__('map_recorder')
 
-        # Action server setup
-        self._action_server = ActionServer(
-            self,
-            MapRecord,
-            'record_map',
-            self.execute_callback
-        )
-
-        # Data buffer and default values
-        self.data_buffer = {}
-        self.image_counter = 1
-        self.lidar_counter = 1
         # Declare parameters
+        self.declare_parameter('output_folder', '')
+        self.declare_parameter('record_interval', 0.0)
         self.declare_parameter('camera_topic', '')
         self.declare_parameter('lidar_topic', '')
         self.declare_parameter('cmd_vel_topic', '')
         self.declare_parameter('odom_topic', '')
 
         # Retrieve parameters
+        self.output_folder = self.get_parameter('output_folder').value
+        self.record_interval = self.get_parameter('record_interval').value
         self.camera_topic = self.get_parameter('camera_topic').value
         self.lidar_topic = self.get_parameter('lidar_topic').value
         self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').value
         self.odom_topic = self.get_parameter('odom_topic').value
+
+        # Create rosbag writer for cmd_vel data only
+        self.bag_writer = self.create_bag_writer(self.output_folder)
+
+        # Define topics to record with their message types
+        self.topics_to_record = {
+            self.camera_topic: Image,
+            self.lidar_topic: LaserScan,
+            self.cmd_vel_topic: Twist,
+            self.odom_topic: Odometry
+        }
+
+        # Data buffer
+        self.data_buffer = {topic: None for topic in self.topics_to_record}
+
+        # Initialize CVBridge for image conversion
         self.bridge = CvBridge()
 
-        # Initialize the bag writer (but not open it until the goal is accepted)
-        self.bag_writer = None
+        # Subscriptions
+        for topic, msg_type in self.topics_to_record.items():
+            self.create_subscription(msg_type, topic, self.create_callback(topic), 10)
+
+        # Counters and default file setup
+        self.image_counter = 1
+        self.lidar_counter = 1
+        os.makedirs(self.output_folder, exist_ok=True)
 
         # CSV for odometry data
-        self.odom_csv_file = None
-        self.csv_writer = None
+        self.odom_csv_file = os.path.join(self.output_folder, "odom_data.csv")
+        self.csv_file = open(self.odom_csv_file, mode='w', newline='')
+        self.csv_writer = csv.writer(self.csv_file)
+        self.csv_writer.writerow(['Timestamp', 'X', 'Y'])
 
         # Default velocity handling
         self.default_velocity = Twist()
         self.is_default_velocity = True
-        self.recording_active = False  # Flag to indicate if recording is active
 
-    def execute_callback(self, goal_handle):
-        # Extract parameters from goal
-        output_folder = goal_handle.request.output_folder
-        record_interval = goal_handle.request.record_interval
-        start_map = goal_handle.request.start_map
+        # Immediately start recording default velocity
+        self.save_velocity_data(self.default_velocity)
 
-        if not start_map:
-            # If output_folder is empty, stop the recording
-            self.stop_recording()
-            goal_handle.succeed()
-            result = MapRecord.Result()
-            result.success = True
-            result.message = 'Recording stopped successfully.'
-            return result
+        # Timer for non-velocity data
+        self.timer = self.create_timer(self.record_interval, self.save_data)
 
-        # Otherwise, start a new recording
-        self.setup_recording(output_folder, record_interval)
-        goal_handle.succeed()
-        result = MapRecord.Result()
-        result.success = True
-        result.message = 'Recording started successfully.'
-        return result
-
-    def setup_recording(self, output_folder, record_interval):
-        try:
-            # Set the output folder and interval
-            self.output_folder = output_folder
-            self.record_interval = record_interval
-
-            # Create rosbag writer for cmd_vel data
-            self.bag_writer = self.create_bag_writer(self.output_folder)
-
-            # CSV file for odometry data
-            self.odom_csv_file = os.path.join(self.output_folder, "odom_data.csv")
-            self.csv_file = open(self.odom_csv_file, mode='w', newline='')
-            self.csv_writer = csv.writer(self.csv_file)
-            self.csv_writer.writerow(['Timestamp', 'X', 'Y'])
-
-            self.is_default_velocity = True
-
-            # Immediately start recording default velocity
-            self.save_velocity_data(self.default_velocity)
-
-            # Create subscriptions for topics
-            self.topics_to_record = {
-                self.camera_topic: Image,
-                self.lidar_topic: LaserScan,
-                self.cmd_vel_topic: Twist,
-                self.odom_topic: Odometry
-            }
-            for topic, msg_type in self.topics_to_record.items():
-                self.create_subscription(msg_type, topic, self.create_callback(topic), 10)
-
-            # Timer for data recording
-            self.timer = self.create_timer(self.record_interval, self.save_data)
-
-            self.recording_active = True
-            self.get_logger().info(f"Recording started: saving data every {self.record_interval} seconds")
-        except Exception as e:
-            self.get_logger().error(f"Error starting recording: {e}")
-
-    def stop_recording(self):
-        if self.recording_active:
-            try:
-                # Close CSV and rosbag
-                if self.csv_file:
-                    self.csv_file.close()
-
-                if self.bag_writer:
-                    self.bag_writer.close()
-
-                self.recording_active = False
-                self.get_logger().info("Recording stopped.")
-            except Exception as e:
-                self.get_logger().error(f"Error stopping recording: {str(e)}")
-        else:
-            self.get_logger().info("Recording is already stopped.")
+        self.get_logger().info(f"Time-based map recording started with {self.record_interval} seconds interval")
 
     def create_bag_writer(self, filename):
         storage_options = StorageOptions(uri=filename, storage_id='sqlite3')
@@ -192,8 +135,7 @@ class MapRecorder(Node):
             timestamp = self.get_clock().now().to_msg().sec
             self.csv_writer.writerow([timestamp, x, y])
         except Exception as e:
-            #self.get_logger().error(f"Error saving odometry data: {str(e)}")
-            pass
+            self.get_logger().error(f"Error saving odometry data: {str(e)}")
 
     def save_image(self, msg):
         try:
@@ -222,6 +164,12 @@ class MapRecorder(Node):
             self.lidar_counter += 1
         except Exception as e:
             self.get_logger().error(f"Error saving lidar scan: {str(e)}")
+
+    def stop_recording(self):
+        self.get_logger().info("Stopping rosbag recording")
+        self.csv_file.close()
+        self.bag_writer.reset()
+        self.destroy_node()
 
 
 def main(args=None):

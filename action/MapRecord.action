@@ -1,0 +1,13 @@
+# RecordMap.action
+
+# Goal: Parameters to start recording
+string output_folder
+float64 record_interval
+bool start_map
+
+---
+# Result: Any result you want to return once recording is done
+bool success
+string message
+
+---

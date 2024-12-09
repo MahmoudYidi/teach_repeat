@@ -94,7 +94,7 @@ def main(args=None):
 
     bag_thread = threading.Thread(
         target=node.read_rosbag_and_publish,
-        args=('rosbag_data',),  # Replace with the correct path to the bag
+        args=('rosbag_data',),  
         daemon=True
     )
     bag_thread.start()
