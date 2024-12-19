@@ -14,9 +14,10 @@ find_package(sensor_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/MapRecord.action"
+  "action/MapRepeat.action"
   DEPENDENCIES
     std_msgs
-    action_msgs # Add packages that above messages depend on,
+    action_msgs 
 )
 # Install Python modules
 install(

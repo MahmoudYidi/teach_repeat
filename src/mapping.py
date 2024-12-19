@@ -13,7 +13,7 @@ import json
 import os
 import csv
 import cv2
-from teachrepeat.action import MapRecord  # Replace 'my_package' with your actual package name
+from teachrepeat.action import MapRecord  
 
 
 class MapRecorder(Node):
@@ -45,7 +45,7 @@ class MapRecorder(Node):
         self.odom_topic = self.get_parameter('odom_topic').value
         self.bridge = CvBridge()
 
-        # Initialize the bag writer (but not open it until the goal is accepted)
+        # Initialize the bag writer (
         self.bag_writer = None
 
         # CSV for odometry data
@@ -55,7 +55,8 @@ class MapRecorder(Node):
         # Default velocity handling
         self.default_velocity = Twist()
         self.is_default_velocity = True
-        self.recording_active = False  # Flag to indicate if recording is active
+        self.recording_active = False  
+        self.get_logger().info("Mapping Node succesfully initialised")
 
     def execute_callback(self, goal_handle):
         # Extract parameters from goal
@@ -64,7 +65,6 @@ class MapRecorder(Node):
         start_map = goal_handle.request.start_map
 
         if not start_map:
-            # If output_folder is empty, stop the recording
             self.stop_recording()
             goal_handle.succeed()
             result = MapRecord.Result()
@@ -72,7 +72,6 @@ class MapRecorder(Node):
             result.message = 'Recording stopped successfully.'
             return result
 
-        # Otherwise, start a new recording
         self.setup_recording(output_folder, record_interval)
         goal_handle.succeed()
         result = MapRecord.Result()
@@ -82,14 +81,11 @@ class MapRecorder(Node):
 
     def setup_recording(self, output_folder, record_interval):
         try:
-            # Set the output folder and interval
             self.output_folder = output_folder
             self.record_interval = record_interval
 
-            # Create rosbag writer for cmd_vel data
             self.bag_writer = self.create_bag_writer(self.output_folder)
 
-            # CSV file for odometry data
             self.odom_csv_file = os.path.join(self.output_folder, "odom_data.csv")
             self.csv_file = open(self.odom_csv_file, mode='w', newline='')
             self.csv_writer = csv.writer(self.csv_file)
@@ -100,7 +96,7 @@ class MapRecorder(Node):
             # Immediately start recording default velocity
             self.save_velocity_data(self.default_velocity)
 
-            # Create subscriptions for topics
+           
             self.topics_to_record = {
                 self.camera_topic: Image,
                 self.lidar_topic: LaserScan,
@@ -110,10 +106,10 @@ class MapRecorder(Node):
             for topic, msg_type in self.topics_to_record.items():
                 self.create_subscription(msg_type, topic, self.create_callback(topic), 10)
 
-            # Timer for data recording
+            self.recording_active = True
             self.timer = self.create_timer(self.record_interval, self.save_data)
 
-            self.recording_active = True
+            
             self.get_logger().info(f"Recording started: saving data every {self.record_interval} seconds")
         except Exception as e:
             self.get_logger().error(f"Error starting recording: {e}")
@@ -126,7 +122,8 @@ class MapRecorder(Node):
                     self.csv_file.close()
 
                 if self.bag_writer:
-                    self.bag_writer.close()
+                    #self.bag_writer.close()
+                    self.bag_writer = None 
 
                 self.recording_active = False
                 self.get_logger().info("Recording stopped.")
@@ -169,21 +166,22 @@ class MapRecorder(Node):
             serialized_msg = serialize_message(msg)
             if serialized_msg is not None:
                 self.bag_writer.write(self.cmd_vel_topic, serialized_msg, timestamp.nanoseconds)
-            self.get_logger().info("Saved cmd_vel data to rosbag")
+            self.get_logger().info("Saved velocity data to rosbag")
         except Exception as e:
             self.get_logger().error(f"Error saving velocity data: {str(e)}")
 
     def save_data(self):
-        try:
-            if self.data_buffer.get(self.camera_topic) is not None:
-                self.save_image(self.data_buffer[self.camera_topic][0])
+        if self.recording_active:
+            try:
+                if self.data_buffer.get(self.camera_topic) is not None:
+                    self.save_image(self.data_buffer[self.camera_topic][0])
 
-            if self.data_buffer.get(self.lidar_topic) is not None:
-                self.save_lidar_scan(self.data_buffer[self.lidar_topic][0])
+                if self.data_buffer.get(self.lidar_topic) is not None:
+                    self.save_lidar_scan(self.data_buffer[self.lidar_topic][0])
 
-            self.get_logger().info(f"Saved image and lidar data at {self.record_interval} seconds interval")
-        except Exception as e:
-            self.get_logger().error(f"Error saving data: {str(e)}")
+                self.get_logger().info(f"Saved image and scan data")
+            except Exception as e:
+                self.get_logger().error(f"Error saving data: {str(e)}") 
 
     def save_odometry(self, msg):
         try:

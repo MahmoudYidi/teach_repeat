@@ -14,65 +14,39 @@ def calculate_laser_deviation(saved_scan, current_scan, robot_orientation, max_d
     saved_points = polar_to_cartesian(saved_scan)
     current_points = polar_to_cartesian(current_scan)
 
-    # Transform the points to the robot's local frame
-    #saved_points_local = transform_to_robot_frame(saved_points, robot_orientation)
-    #current_points_local = transform_to_robot_frame(current_points, robot_orientation)
+    #  y-coordinates (lateral deviation in robot's local frame)
+    saved_y = saved_points[:, 1]  
+    current_y = current_points[:, 1]  
 
-    # Focus on the y-coordinates (lateral deviation in robot's local frame)
-    saved_y = saved_points[:, 1]  # y-coordinates from saved scan
-    current_y = current_points[:, 1]  # y-coordinates from current scan
-
-    # Find the nearest neighbor indices for the y-coordinate (ignoring x)
+    # Find the nearest neighbor indices 
     nn = NearestNeighbors(n_neighbors=1)
-    nn.fit(saved_y.reshape(-1, 1))  # Fit based on the y-values only
-    distances, _ = nn.kneighbors(current_y.reshape(-1, 1))  # Compare y-values only
+    nn.fit(saved_y.reshape(-1, 1)) 
+    distances, _ = nn.kneighbors(current_y.reshape(-1, 1))  
 
     # Calculate the average deviation in the y-axis (robot's local frame)
     deviation = np.mean(distances)
     if abs(deviation) < max_deviation:
-       # Skip deviations that are too large
-            # Robot is facing right (clockwise), positive deviation means to the right
             return deviation    
             
     else:
-        print('discarded')
+        #print('discarded')
         return 0.0
     
 
 def polar_to_cartesian(scan):
-    """
-    Convert polar coordinates (range, angle) to Cartesian coordinates (x, y).
-    """
+   #Convert polar coordinates (range, angle) to Cartesian coordinates (x, y).
     angles = np.linspace(0, 2 * np.pi, len(scan), endpoint=False)
     x = scan * np.cos(angles)
     y = scan * np.sin(angles)
     points = np.column_stack((x, y))
     return points
 
-def transform_to_robot_frame(points, robot_orientation):
-    """
-    Transform points from the global frame to the robot's local frame using its orientation.
-    
-    Args:
-    - points: The points to be transformed (Cartesian coordinates).
-    - robot_orientation: The robot's yaw orientation (in radians).
-    
-    Returns:
-    - Transformed points in the robot's local frame.
-    """
-    # Rotation matrix to transform global coordinates to robot's local coordinates
-    rotation_matrix = np.array([[np.cos(robot_orientation), -np.sin(robot_orientation)],
-                                [np.sin(robot_orientation), np.cos(robot_orientation)]])
-    
-    # Apply the rotation to each point
-    transformed_points = np.dot(points, rotation_matrix.T)  # Rotate points by the robot's orientation
-    return transformed_points
 
 
 def calculate_image_deviation(image1, image2, depth_image, robot_orientation, fx=185.90483944879418, 
                               max_match_distance=200.0, max_deviation=0.8, use_sift=False):
     """
-    Calculate the deviation distance between two images using ORB or SIFT and a single depth image.
+    Calculate the deviation distance(m) between two images using ORB 
 
     Parameters:
     - image1, image2: Input RGB images to compare.

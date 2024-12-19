@@ -1,9 +1,6 @@
-# RecordMap.action
-
 # Goal
 string output_folder
-float64 record_interval
-bool start_map
+float32 record_interval
 
 ---
 # Result

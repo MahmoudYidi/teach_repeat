@@ -11,25 +11,20 @@ from rclpy.time import Time
 class DeviationProcessor:
     def __init__(self):
        pass
-    #def normalize_deviations(self, laser_deviation, image_deviation):
-   
-        # Convert image deviation from pixels to meters using the calculated ratio
-        #normalized_image_deviation = image_deviation * self.image_to_meter_ratio
-        #return laser_deviation, normalized_image_deviation
 
-    def combine_deviations_rmse(self, laser_deviation, image_deviation):
-        print('laser', laser_deviation)
-        print('image', image_deviation)
+    def combine_deviations(self, laser_deviation, image_deviation):
+        #print('laser', laser_deviation)
+        #print('image', image_deviation)
         #combined_sign = np.sign(laser_deviation + image_deviation)
-        combined_deviation = ((0.5 * laser_deviation) + (0.5 * image_deviation)) / 1
+        combined_deviation = ((0.5 * laser_deviation) + (0.5 * image_deviation)) / 1 #Weighted equal 
         #combined_deviation = combined_sign * weighted_average
-        print('combined',combined_deviation)
+        #print('combined',combined_deviation)
         return combined_deviation
         
 
-    def compute_velocity_correction(self, combined_deviation, kp=0.0):
+    def compute_velocity_correction(self, combined_deviation, kp=0.000025):
         gained = kp * combined_deviation
-        print('gained',gained)
+        #print('gained',gained)
  
         return gained
     def create_bag_reader(self, directory):
@@ -65,5 +60,10 @@ class DeviationProcessor:
                     callback(msg)
                     previous_timestamp = timestamp
             except StopIteration:
+                print("Finished processing rosbag.")
+                del bag_reader
+                break
+            except Exception as e:
+                print(f"Error reading rosbag: {e}")
                 break
 

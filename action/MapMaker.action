@@ -1,7 +1,0 @@
-# Goal
-string map_name
----
-# Result
-bool success
----
-# Feedback (if required, can be omitted)
